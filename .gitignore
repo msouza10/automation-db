@@ -1,0 +1,5 @@
+csv/
+results/
+logs/
+packed/
+*.csv
