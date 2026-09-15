@@ -38,3 +38,24 @@ case "$MAX_CLIENTES_POR_SERVIDOR" in
     ''|*[!0-9]*) erro "config invalido: MAX_CLIENTES_POR_SERVIDOR deve ser um inteiro (valor atual: '$MAX_CLIENTES_POR_SERVIDOR')" ;;
 esac
 [ -n "$SERVIDOR_RECEBEDOR" ] || erro "config invalido: SERVIDOR_RECEBEDOR nao definido em $CONFIG_FILE"
+
+mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+rm -f "$RESULTS_DIR"/to_*.txt
+
+MOVES_TMP=$(mktemp)
+STDERR_TMP=$(mktemp)
+
+awk -v max="$MAX_CLIENTES_POR_SERVIDOR" \
+    -v excluded_csv="$SERVIDORES_EXCLUIDOS" \
+    -v receiver="$SERVIDOR_RECEBEDOR" \
+    -f "$AWK_SCRIPT" "$CSV" > "$MOVES_TMP" 2> "$STDERR_TMP"
+
+DESTINOS=$(cut -d',' -f3 "$MOVES_TMP" | sort -u)
+for destino in $DESTINOS; do
+    awk -F',' -v d="$destino" '$3==d {print $1}' "$MOVES_TMP" | sort > "$RESULTS_DIR/to_$destino.txt"
+done
+
+TOTAL_MOVIDOS=$(wc -l < "$MOVES_TMP" | tr -d ' ')
+TOTAL_AVISOS=$(wc -l < "$STDERR_TMP" | tr -d ' ')
+
+exit 0
