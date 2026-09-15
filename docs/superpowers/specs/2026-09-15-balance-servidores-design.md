@@ -33,17 +33,20 @@ Ambientes válidos (definidos por `build.sh`): `manager-users`,
 ## 3. Invocação
 
 ```
-./balance.sh <env> <caminho-do-csv>
+./balance.sh [--dry-run] <env> <caminho-do-csv>
 ```
 
+- `--dry-run` (opcional, precisa vir antes dos argumentos posicionais):
+  calcula e mostra o relatório (seção 7.1) sem escrever nenhum arquivo.
+  Ver seção 7.2.
 - `<env>`: nome do ambiente. Deve existir `configs/<env>/config.conf`.
 - `<caminho-do-csv>`: caminho para o CSV de entrada (normalmente dentro de
   `csv/`, mas o script aceita qualquer caminho válido).
 - Validações antes de rodar: `env` informado, diretório `configs/<env>/`
   existe, `config.conf` existe e é legível, CSV informado existe e é
-  legível, `config.conf` define as três chaves obrigatórias (seção 5).
+  legível, `config.conf` define as chaves obrigatórias (seção 5).
   Qualquer falha aqui aborta com mensagem de erro clara e código de saída
-  != 0, sem gerar nenhum arquivo de saída.
+  != 0, sem gerar nenhum arquivo de saída (com ou sem `--dry-run`).
 
 ## 4. Formato da planilha (CSV) de entrada
 
@@ -156,6 +159,31 @@ extra. Servidores que não receberam ninguém não geram arquivo (o
 diretório `results/<env>/` é limpo de `to_*.txt` de execuções anteriores
 antes de escrever os novos, para não deixar arquivos obsoletos).
 
+### 7.1. Relatório no terminal
+
+Toda execução (normal ou `--dry-run`) imprime, nessa ordem, na saída
+padrão:
+
+1. `=== ANTES ===` — tabela por servidor (clientes, devices) refletindo o
+   estado atual da planilha, para todo servidor que aparece nela
+   (incluindo o `SERVIDOR_RECEBEDOR` e servidores excluídos — o relatório
+   é informativo, não segue as regras de elegibilidade do balanceamento).
+2. `=== MOVIMENTACOES ===` — lista `cliente: origem -> destino (N
+   devices)`, uma por linha (ou `(nenhuma)`).
+3. `=== RESUMO POR SERVIDOR ===` — tabela com quantos clientes cada
+   servidor perdeu e recebeu (só servidores envolvidos em pelo menos uma
+   movimentação).
+4. `=== DEPOIS ===` — mesma tabela do item 1, recalculada após aplicar as
+   movimentações.
+
+### 7.2. `--dry-run`
+
+`./balance.sh --dry-run <env> <caminho-do-csv>` (a flag precisa vir antes
+dos dois argumentos posicionais) roda o mesmo cálculo e imprime o mesmo
+relatório do terminal, mas **não escreve nenhum arquivo** — nem
+`to_*.txt`, nem o log. Serve para pré-visualizar o plano de balanceamento
+antes de aplicá-lo de verdade (rodando sem a flag).
+
 ## 8. Log
 
 `logs/<env>/balance_<timestamp>.log` (timestamp formato
@@ -186,10 +214,16 @@ totais + avisos, se houver) e escreve o log completo em arquivo.
   `-v`) e emite as movimentações decididas (`cliente,origem,destino,devices`)
   em stdout; o Bash consome essa saída para gerar os arquivos `to_*.txt`
   e o log.
-- Bash cuida de: parsing de argumentos, validação de ambiente/config/CSV,
-  `source` do config, invocação do awk, distribuição das linhas de saída
-  do awk nos arquivos `to_<servidor>.txt` corretos, geração do log,
-  limpeza de `to_*.txt` antigos em `results/<env>/`.
+- Bash cuida de: parsing de argumentos (incl. `--dry-run`), validação de
+  ambiente/config/CSV, `source` do config, invocação do awk, distribuição
+  das linhas de saída do awk nos arquivos `to_<servidor>.txt` corretos,
+  geração do log, limpeza de `to_*.txt` antigos em `results/<env>/`.
+- `lib/relatorio.awk`: segundo script awk, responsabilidade única de
+  calcular a tabela antes/depois (clientes e devices por servidor) a
+  partir do CSV original + da saída do `lib/balance.awk`. Não decide
+  nada sobre o balanceamento, só resume o resultado. Bash usa esse
+  resultado para renderizar as tabelas do terminal (seção 7.1) via
+  `column -t` (utilitário padrão em Linux e macOS).
 
 ## 10. Testes
 
