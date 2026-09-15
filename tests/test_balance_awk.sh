@@ -3,8 +3,8 @@
 AWK_SCRIPT="$PROJECT_ROOT/lib/balance.awk"
 
 run_awk() {
-    # $1=csv $2=max $3=excluded_csv $4=receiver
-    awk -v max="$2" -v excluded_csv="$3" -v receiver="$4" -f "$AWK_SCRIPT" "$1"
+    # $1=csv $2=max $3=excluded_csv $4=receiver $5=max_devices (opcional)
+    awk -v max="$2" -v excluded_csv="$3" -v receiver="$4" -v max_devices="${5:-}" -f "$AWK_SCRIPT" "$1"
 }
 
 # Caso 1: nenhum servidor acima do limite -> nenhuma movimentacao
@@ -133,3 +133,71 @@ assert_eq "c1,srv1,srv2,10" "$out8" "deve mover apenas o que a capacidade de des
 assert_contains "$err8" "AVISO" "deve avisar sobre o cliente que nao coube em nenhum destino"
 assert_contains "$err8" "c2" "o aviso deve identificar o cliente que nao pode ser movido"
 rm -f "$csv8" "$stderr8"
+
+# Caso 9: excedente causado so pelo limite de DEVICES (contagem de clientes ok) ->
+# move o MAIOR cliente primeiro, minimizando o numero de movimentacoes
+csv9=$(mktemp)
+cat > "$csv9" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,4000,-,2024-01-01
+c2,srv1,2000,-,2024-01-01
+c3,srv1,100,-,2024-01-01
+c4,srv2,1,-,2024-01-01
+EOF
+# max_clientes=10 (count=3, nao excede). max_devices=5000 (total=6100, excesso=1100).
+# ordenando por devices decrescente, o maior (c1=4000) sozinho ja cobre o excesso.
+out9=$(run_awk "$csv9" 10 "" "" 5000)
+assert_eq "c1,srv1,srv2,4000" "$out9" "excedente por devices deve mover o maior cliente primeiro, resolvendo em 1 movimentacao"
+rm -f "$csv9"
+
+# Caso 10: destino precisa ter folga tanto em contagem quanto em devices - um
+# destino com mais vagas de cliente mas sem devices suficientes deve ser
+# ignorado em favor de outro com menos vagas mas devices suficientes
+csv10=$(mktemp)
+cat > "$csv10" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,4000,-,2024-01-01
+c2,srv1,3000,-,2024-01-01
+c3,srvA,4800,-,2024-01-01
+c4,srvB,20,-,2024-01-01
+c5,srvB,20,-,2024-01-01
+c6,srvB,20,-,2024-01-01
+c7,srvB,20,-,2024-01-01
+c8,srvB,20,-,2024-01-01
+EOF
+# max_clientes=10, max_devices=5000.
+# srv1: count=2 (ok), devices=7000 (excesso=2000) -> move c1(4000), resolve em 1.
+# srvA: count=1 (capacidade_count=9, MUITA vaga), devices=4800 (capacidade_devices=200, NAO cabe c1)
+# srvB: count=5 (capacidade_count=5, menos vaga que srvA), devices=100 (capacidade_devices=4900, CABE c1)
+out10=$(run_awk "$csv10" 10 "" "" 5000)
+assert_eq "c1,srv1,srvB,4000" "$out10" "deve escolher srvB (cabe em devices) e ignorar srvA (mais vagas mas sem devices suficientes)"
+rm -f "$csv10"
+
+# Caso 11: com max_devices configurado, um servidor que NAO excede devices
+# (so excede contagem) continua usando a regra antiga: move o MENOR primeiro
+csv11=$(mktemp)
+cat > "$csv11" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,50,-,2024-01-01
+c2,srv1,10,-,2024-01-01
+c3,srv1,30,-,2024-01-01
+c4,srv2,1,-,2024-01-01
+EOF
+# max_clientes=2 (excedente=1). max_devices=1000 (total srv1=90, bem abaixo - sem excesso de devices)
+out11=$(run_awk "$csv11" 2 "" "" 1000)
+assert_eq "c2,srv1,srv2,10" "$out11" "sem excesso de devices, continua movendo o menor cliente primeiro mesmo com max_devices configurado"
+rm -f "$csv11"
+
+# Caso 12: excedente por devices sem candidato movivel (unico cliente >5000) ->
+# aviso deve citar tambem a quantidade de devices que ficou acima do limite
+csv12=$(mktemp)
+cat > "$csv12" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,6000,-,2024-01-01
+EOF
+stderr12=$(mktemp)
+out12=$(run_awk "$csv12" 10 "" "" 1000 2>"$stderr12")
+err12=$(cat "$stderr12")
+assert_eq "" "$out12" "cliente >5000 devices nao pode ser movido mesmo quando o excedente e' de devices"
+assert_contains "$err12" "5000 devices" "aviso deve citar a quantidade de devices que permanece acima do limite"
+rm -f "$csv12" "$stderr12"

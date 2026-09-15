@@ -30,6 +30,7 @@ LOGS_DIR="$SCRIPT_DIR/logs/$ENV"
 MAX_CLIENTES_POR_SERVIDOR=""
 SERVIDORES_EXCLUIDOS=""
 SERVIDOR_RECEBEDOR=""
+MAX_DEVICES_POR_SERVIDOR=""
 # shellcheck disable=SC1090
 . "$CONFIG_FILE"
 
@@ -38,6 +39,11 @@ case "$MAX_CLIENTES_POR_SERVIDOR" in
     ''|*[!0-9]*) erro "config invalido: MAX_CLIENTES_POR_SERVIDOR deve ser um inteiro (valor atual: '$MAX_CLIENTES_POR_SERVIDOR')" ;;
 esac
 [ -n "$SERVIDOR_RECEBEDOR" ] || erro "config invalido: SERVIDOR_RECEBEDOR nao definido em $CONFIG_FILE"
+if [ -n "$MAX_DEVICES_POR_SERVIDOR" ]; then
+    case "$MAX_DEVICES_POR_SERVIDOR" in
+        ''|*[!0-9]*) erro "config invalido: MAX_DEVICES_POR_SERVIDOR deve ser um inteiro (valor atual: '$MAX_DEVICES_POR_SERVIDOR')" ;;
+    esac
+fi
 
 mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 rm -f "$RESULTS_DIR"/to_*.txt
@@ -48,6 +54,7 @@ STDERR_TMP=$(mktemp)
 awk -v max="$MAX_CLIENTES_POR_SERVIDOR" \
     -v excluded_csv="$SERVIDORES_EXCLUIDOS" \
     -v receiver="$SERVIDOR_RECEBEDOR" \
+    -v max_devices="$MAX_DEVICES_POR_SERVIDOR" \
     -f "$AWK_SCRIPT" "$CSV" > "$MOVES_TMP" 2> "$STDERR_TMP"
 
 DESTINOS=$(cut -d',' -f3 "$MOVES_TMP" | sort -u)

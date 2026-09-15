@@ -69,6 +69,7 @@ próprio script; não é entrada de usuário não-confiável).
 MAX_CLIENTES_POR_SERVIDOR=100
 SERVIDORES_EXCLUIDOS="srvA,srvB"   # não recebem clientes novos no balanceamento
 SERVIDOR_RECEBEDOR="srvC"          # fora do balanceamento inteiramente
+MAX_DEVICES_POR_SERVIDOR=5000      # opcional
 ```
 
 - `MAX_CLIENTES_POR_SERVIDOR`: inteiro único, vale igualmente para todo
@@ -78,40 +79,72 @@ SERVIDOR_RECEBEDOR="srvC"          # fora do balanceamento inteiramente
   limite) mas **nunca recebem** clientes movidos.
 - `SERVIDOR_RECEBEDOR`: exatamente um nome de servidor. É removido do
   balanceamento por completo — não é avaliado como origem nem destino,
-  mesmo que já tenha clientes na planilha ou esteja acima/abaixo do
-  limite.
+  mesmo que já tenha clientes na planilha ou esteja acima/abaixo de
+  qualquer limite.
 - Se `SERVIDOR_RECEBEDOR` também aparecer em `SERVIDORES_EXCLUIDOS`, isso
   é redundante mas não é erro (o recebedor já está fora do balanceamento).
+- `MAX_DEVICES_POR_SERVIDOR` (opcional): inteiro único, mesma abrangência
+  de `MAX_CLIENTES_POR_SERVIDOR`. Se vazio/ausente, nenhum limite de
+  devices é aplicado (comportamento idêntico ao original, só contagem de
+  clientes). Ver seção 6 para como os dois limites interagem.
+
+  Nota de compatibilidade: esta chave foi adicionada depois da primeira
+  versão do script. Um `config.conf` sem ela continua funcionando
+  exatamente como antes — a extensão é estritamente aditiva e opt-in por
+  ambiente.
 
 ## 6. Algoritmo de balanceamento
 
 Objetivo: **trazer cada servidor excedente de volta ao limite, com o
 mínimo de movimentações possível** — nunca busca equalizar além disso.
 
-1. Agrupa clientes por servidor a partir do CSV.
+1. Agrupa clientes por servidor a partir do CSV, somando também o total
+   de `devices` por servidor.
 2. Remove `SERVIDOR_RECEBEDOR` do conjunto de servidores avaliados.
-3. Para cada servidor restante, calcula `contagem_atual` (nº de clientes).
-   - **Excedente**: `contagem_atual > MAX_CLIENTES_POR_SERVIDOR`. Precisa
-     perder `contagem_atual - MAX_CLIENTES_POR_SERVIDOR` clientes.
+3. Para cada servidor restante, calcula `contagem_atual` (nº de clientes)
+   e `devices_atual` (soma de devices dos seus clientes).
+   - **Excedente**: `contagem_atual > MAX_CLIENTES_POR_SERVIDOR` **OU**
+     (`MAX_DEVICES_POR_SERVIDOR` configurado **e**
+     `devices_atual > MAX_DEVICES_POR_SERVIDOR`). Os dois limites são
+     independentes; violar qualquer um dos dois já torna o servidor
+     excedente. Precisa perder `contagem_atual - MAX_CLIENTES_POR_SERVIDOR`
+     clientes (0 se não violou esse limite) **e**
+     `devices_atual - MAX_DEVICES_POR_SERVIDOR` devices (0 se não violou
+     esse limite, ou se `MAX_DEVICES_POR_SERVIDOR` não estiver
+     configurado) — as duas metas precisam ser satisfeitas.
    - **Elegível como destino**: `contagem_atual < MAX_CLIENTES_POR_SERVIDOR`
-     **e** o servidor não está em `SERVIDORES_EXCLUIDOS`. Capacidade
-     disponível = `MAX_CLIENTES_POR_SERVIDOR - contagem_atual`.
-4. Para cada servidor excedente, ordena seus clientes por `devices`
-   crescente e seleciona, em ordem, os menores clientes até cobrir o
-   excedente necessário — **pulando qualquer cliente com
-   `devices > 5000`** (esse cliente nunca é candidato a mover, mesmo que
-   seja o menor disponível).
+     **e** (`MAX_DEVICES_POR_SERVIDOR` não configurado **ou**
+     `devices_atual < MAX_DEVICES_POR_SERVIDOR`) **e** o servidor não está
+     em `SERVIDORES_EXCLUIDOS`. Capacidade de clientes disponível =
+     `MAX_CLIENTES_POR_SERVIDOR - contagem_atual`; capacidade de devices
+     disponível (quando configurado) = `MAX_DEVICES_POR_SERVIDOR -
+     devices_atual`.
+4. Para cada servidor excedente, escolhe a ordem de seleção dos seus
+   clientes:
+   - Se o excedente inclui devices (`devices_atual > MAX_DEVICES_POR_SERVIDOR`),
+     ordena os clientes por `devices` **decrescente** — move os maiores
+     primeiro, o que minimiza o número de movimentações necessárias para
+     reduzir o total de devices.
+   - Caso contrário (excedente só de contagem), ordena por `devices`
+     **crescente** — move os menores primeiro, como antes.
+   Em ambos os casos, **pula qualquer cliente com `devices > 5000`** (esse
+   cliente nunca é candidato a mover, mesmo que seja o único disponível) e
+   seleciona clientes, nessa ordem, até que TANTO a meta de contagem
+   QUANTO a meta de devices tenham sido atingidas (o que for aplicável).
    - Se não houver clientes elegíveis suficientes para cobrir o
-     excedente inteiro, move os que der e registra aviso (seção 8) — não
-     aborta a execução.
+     excedente inteiro (de contagem e/ou de devices), move os que der e
+     registra aviso (seção 8) — não aborta a execução.
 5. Atribuição de destino (greedy, global entre todos os servidores
-   excedentes): a cada cliente selecionado para mover, escolhe o
-   servidor elegível com **maior capacidade disponível no momento**;
-   decrementa a capacidade desse servidor em 1 após a atribuição.
-   - Se a capacidade total disponível entre os servidores elegíveis se
-     esgotar antes de todos os clientes necessários serem movidos, os
-     clientes restantes ficam sem destino — registra aviso (seção 8) e
-     não são incluídos em nenhum `to_*.txt`.
+   excedentes): a cada cliente selecionado para mover, escolhe — entre os
+   servidores elegíveis que tenham **tanto** uma vaga de cliente livre
+   **quanto** (quando `MAX_DEVICES_POR_SERVIDOR` configurado) devices
+   suficientes para acomodar aquele cliente específico — o servidor com
+   **maior capacidade de clientes disponível no momento**; decrementa a
+   capacidade de clientes em 1 e a capacidade de devices pelo tamanho do
+   cliente movido.
+   - Se nenhum servidor elegível tiver as duas folgas necessárias para um
+     cliente, ele fica sem destino — registra aviso (seção 8) e não é
+     incluído em nenhum `to_*.txt`.
 6. `devices == 5000` é movível (a regra exclui apenas `> 5000`).
 
 ## 7. Saída
@@ -133,7 +166,9 @@ antes de escrever os novos, para não deixar arquivos obsoletos).
 - Um aviso por servidor que permaneceu acima do limite ao final,
   explicando a causa (clientes remanescentes todos > 5000 devices, e/ou
   falta de capacidade de destino), com a contagem final e o excedente
-  não resolvido.
+  não resolvido — quando `MAX_DEVICES_POR_SERVIDOR` está configurado, o
+  aviso cita tanto a quantidade de clientes quanto a de devices que
+  ficaram acima do limite.
 - Resumo final: total de clientes movidos, total de servidores ainda
   acima do limite.
 
@@ -167,6 +202,11 @@ totais + avisos, se houver) e escreve o log completo em arquivo.
   inexistente.
 - Caso de capacidade insuficiente (para validar o aviso no log em vez de
   abort).
+- Casos com `MAX_DEVICES_POR_SERVIDOR` configurado: excedente causado só
+  por devices (move maiores primeiro), destino sem devices suficiente
+  mesmo com vaga de cliente livre, excedente só de contagem continua
+  movendo menores primeiro mesmo com o limite de devices configurado, e
+  ausência da chave preservando o comportamento original.
 - Rodar contra o CSV real (`business-users-customer-20241008 - Sheet1.csv`,
   ~29k linhas) para checar performance e sanidade dos números antes de
   considerar pronto.

@@ -65,3 +65,44 @@ esac
 TESTS_RUN=$((TESTS_RUN + 1))
 
 rm -rf "$proj" "$stdout_tmp"
+
+# --- caso 2: MAX_DEVICES_POR_SERVIDOR fluindo pelo balance.sh real ---
+
+proj2=$(mktemp -d)
+cp "$BALANCE_SH" "$proj2/balance.sh"
+cp -r "$PROJECT_ROOT/lib" "$proj2/lib"
+mkdir -p "$proj2/configs/teste-devices"
+cat > "$proj2/configs/teste-devices/config.conf" <<'EOF'
+MAX_CLIENTES_POR_SERVIDOR=10
+MAX_DEVICES_POR_SERVIDOR=5000
+SERVIDOR_RECEBEDOR="srv9"
+EOF
+
+csv_tmp2="$proj2/dados.csv"
+cat > "$csv_tmp2" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,4000,-,2024-01-01
+c2,srv1,2000,-,2024-01-01
+c3,srv1,100,-,2024-01-01
+c4,srv2,1,-,2024-01-01
+c5,srv9,1,-,2024-01-01
+EOF
+# srv1: count=3 (ok), devices=6100 (>5000, excesso=1100) -> move o MAIOR (c1=4000),
+# resolve em 1 movimentacao. srv2: capacidade de sobra em ambos os limites.
+# srv9: recebedor, fora do balanceamento.
+
+stdout_tmp2=$(mktemp)
+"$proj2/balance.sh" teste-devices "$csv_tmp2" > "$stdout_tmp2" 2>&1
+rc2=$?
+assert_eq "0" "$rc2" "execucao com MAX_DEVICES_POR_SERVIDOR deve terminar com sucesso"
+
+expected_srv2_2=$(mktemp)
+printf 'c1\n' > "$expected_srv2_2"
+assert_file_eq "$expected_srv2_2" "$proj2/results/teste-devices/to_srv2.txt" "to_srv2.txt deve conter apenas c1 (excedente de devices resolvido com 1 movimentacao)"
+rm -f "$expected_srv2_2"
+
+log_file2=$(find "$proj2/logs/teste-devices" -name 'balance_*.log' 2>/dev/null | head -n1)
+log_content2=$(cat "$log_file2")
+assert_contains "$log_content2" "c1: srv1 -> srv2 (4000 devices)" "log deve descrever a movimentacao de c1 por causa do excesso de devices"
+
+rm -rf "$proj2" "$stdout_tmp2"

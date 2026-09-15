@@ -71,6 +71,37 @@ assert_eq "1" "$rc" "deve falhar quando MAX_CLIENTES_POR_SERVIDOR nao e' um inte
 assert_contains "$out" "inteiro" "deve informar que o valor precisa ser um inteiro"
 rm -rf "$proj"
 
+# Caso 6b: MAX_DEVICES_POR_SERVIDOR nao numerico (chave opcional, mas se
+# presente precisa ser inteiro)
+proj=$(new_fake_project)
+mkdir -p "$proj/configs/teste-env"
+cat > "$proj/configs/teste-env/config.conf" <<'EOF'
+MAX_CLIENTES_POR_SERVIDOR=10
+SERVIDOR_RECEBEDOR=srvX
+MAX_DEVICES_POR_SERVIDOR=abc
+EOF
+csv_tmp="$proj/dados.csv"
+echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
+out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+rc=$?
+assert_eq "1" "$rc" "deve falhar quando MAX_DEVICES_POR_SERVIDOR nao e' um inteiro"
+assert_contains "$out" "MAX_DEVICES_POR_SERVIDOR" "deve citar a chave invalida no erro"
+rm -rf "$proj"
+
+# Caso 6c: MAX_DEVICES_POR_SERVIDOR ausente (opcional) nao deve falhar
+proj=$(new_fake_project)
+mkdir -p "$proj/configs/teste-env"
+cat > "$proj/configs/teste-env/config.conf" <<'EOF'
+MAX_CLIENTES_POR_SERVIDOR=10
+SERVIDOR_RECEBEDOR=srvX
+EOF
+csv_tmp="$proj/dados.csv"
+echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
+out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+rc=$?
+assert_eq "0" "$rc" "MAX_DEVICES_POR_SERVIDOR e' opcional, sua ausencia nao deve causar erro"
+rm -rf "$proj"
+
 # Caso 6: config sem SERVIDOR_RECEBEDOR
 proj=$(new_fake_project)
 mkdir -p "$proj/configs/teste-env"
