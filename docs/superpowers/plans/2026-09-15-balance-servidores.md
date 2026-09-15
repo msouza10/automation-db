@@ -331,9 +331,12 @@ cat > "$csv7" <<'EOF'
 Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
 c1,srv1,6000,-,2024-01-01
 c2,srv1,5000,-,2024-01-01
-c3,srv2,1,-,2024-01-01
+c3,srv1,8000,-,2024-01-01
+c4,srv2,1,-,2024-01-01
 EOF
-out7=$(run_awk "$csv7" 1 "" "")
+# max=2: srv1 tem 3 (excedente=1). Todos os candidatos tem >=5000 devices; apenas
+# c2 (exatamente 5000) e' elegivel, os outros dois (6000, 8000) excedem o limite.
+out7=$(run_awk "$csv7" 2 "" "")
 assert_eq "c2,srv1,srv2,5000" "$out7" "cliente com exatamente 5000 devices deve ser movivel (regra exclui apenas >5000)"
 rm -f "$csv7"
 
