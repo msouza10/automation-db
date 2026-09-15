@@ -1,0 +1,44 @@
+# config.conf - configuracao de balanceamento do ambiente manager-mdm
+#
+# Preencha os valores abaixo com os dados reais deste ambiente e
+# renomeie este arquivo para "config.conf" (sem o .example) antes de
+# rodar:
+#   ./balance.sh manager-mdm <caminho-do-csv>
+#
+# Formato: bash KEY=VALUE, lido via "source" pelo balance.sh.
+
+# MAX_CLIENTES_POR_SERVIDOR (obrigatorio)
+#
+# Numero maximo de clientes que qualquer servidor deste ambiente pode
+# ter. Um servidor com mais clientes que esse valor e' considerado
+# "excedente": o balanceamento vai mover clientes dele ate ele voltar
+# exatamente a esse limite - nunca menos que isso, nunca tentando
+# equilibrar os servidores entre si alem do necessario.
+#
+# Precisa ser um numero inteiro. Vale igualmente para todo servidor
+# deste ambiente (exceto o SERVIDOR_RECEBEDOR, que fica de fora).
+MAX_CLIENTES_POR_SERVIDOR=
+
+# SERVIDORES_EXCLUIDOS (opcional)
+#
+# Lista de servidores deste ambiente que NAO devem receber clientes
+# novos durante o balanceamento. Um servidor excluido AINDA PODE
+# PERDER clientes normalmente se estiver acima do limite - a exclusao
+# vale so para o lado de destino (nunca e' escolhido para receber
+# alguem vindo de outro servidor).
+#
+# Separe varios nomes por virgula, sem espacos. Deixe em branco ("")
+# se nenhum servidor deste ambiente tiver essa restricao.
+#
+# Exemplo: SERVIDORES_EXCLUIDOS="srvA,srvB"
+SERVIDORES_EXCLUIDOS=""
+
+# SERVIDOR_RECEBEDOR (obrigatorio)
+#
+# Nome do unico servidor reservado para receber clientes novos
+# automaticamente (fora deste script, por outro processo de
+# provisionamento). Esse servidor fica COMPLETAMENTE fora do
+# balanceamento: nunca perde nem recebe clientes por aqui, mesmo que
+# ja tenha clientes na planilha e mesmo que esses clientes ultrapassem
+# o MAX_CLIENTES_POR_SERVIDOR.
+SERVIDOR_RECEBEDOR=
