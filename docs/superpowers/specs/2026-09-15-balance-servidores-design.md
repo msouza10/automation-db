@@ -41,7 +41,7 @@ Ambientes válidos (definidos por `build.sh`): `manager-users`,
   `csv/`, mas o script aceita qualquer caminho válido).
 - Validações antes de rodar: `env` informado, diretório `configs/<env>/`
   existe, `config.conf` existe e é legível, CSV informado existe e é
-  legível, `config.conf` define as três chaves obrigatórias (seção 4).
+  legível, `config.conf` define as três chaves obrigatórias (seção 5).
   Qualquer falha aqui aborta com mensagem de erro clara e código de saída
   != 0, sem gerar nenhum arquivo de saída.
 
