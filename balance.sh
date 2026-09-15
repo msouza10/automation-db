@@ -58,4 +58,37 @@ done
 TOTAL_MOVIDOS=$(wc -l < "$MOVES_TMP" | tr -d ' ')
 TOTAL_AVISOS=$(wc -l < "$STDERR_TMP" | tr -d ' ')
 
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="$LOGS_DIR/balance_${TIMESTAMP}.log"
+
+{
+    echo "Execucao: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "Ambiente: $ENV"
+    echo "CSV: $CSV"
+    echo "Config: $CONFIG_FILE"
+    echo ""
+    echo "Movimentacoes:"
+    if [ -s "$MOVES_TMP" ]; then
+        while IFS=',' read -r cliente origem destino devices; do
+            echo "  $cliente: $origem -> $destino ($devices devices)"
+        done < "$MOVES_TMP"
+    else
+        echo "  (nenhuma)"
+    fi
+    echo ""
+    if [ "$TOTAL_AVISOS" -gt 0 ]; then
+        echo "Avisos:"
+        sed 's/^/  /' "$STDERR_TMP"
+        echo ""
+    fi
+    echo "Resumo: $TOTAL_MOVIDOS cliente(s) movido(s), $TOTAL_AVISOS aviso(s)"
+} > "$LOG_FILE"
+
+rm -f "$MOVES_TMP" "$STDERR_TMP"
+
+echo "Resumo: $TOTAL_MOVIDOS cliente(s) movido(s) em $ENV. Log completo: $LOG_FILE"
+if [ "$TOTAL_AVISOS" -gt 0 ]; then
+    echo "$TOTAL_AVISOS aviso(s) - veja $LOG_FILE"
+fi
+
 exit 0
