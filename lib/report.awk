@@ -1,10 +1,10 @@
-# lib/relatorio.awk
+# lib/report.awk
 #
 # Gera, por servidor, a contagem de clientes e o total de devices antes
 # e depois de um plano de movimentacoes.
 #
 # Uso:
-#   awk -f lib/relatorio.awk planilha.csv movimentacoes.csv
+#   awk -f lib/report.awk planilha.csv movimentacoes.csv
 #
 # planilha.csv: mesmo formato de entrada do balance.awk (header na 1a
 # linha; coluna A=cliente, B=servidor, C=devices).
@@ -21,29 +21,29 @@ FNR == NR {
     sub(/\r$/, "", $0)
     s = $2
     d = ($3 == "" ? 0 : $3) + 0
-    if (!(s in antes_count)) { ordem_n++; ordem[ordem_n] = s }
-    antes_count[s]++
-    antes_dev[s] += d
-    depois_count[s] = antes_count[s]
-    depois_dev[s] = antes_dev[s]
+    if (!(s in before_count)) { order_n++; order[order_n] = s }
+    before_count[s]++
+    before_dev[s] += d
+    after_count[s] = before_count[s]
+    after_dev[s] = before_dev[s]
     next
 }
 
 {
     sub(/\r$/, "", $0)
     if (NF < 4) next
-    origem = $2
-    destino = $3
+    source = $2
+    destination = $3
     dv = $4 + 0
-    depois_count[origem]--
-    depois_dev[origem] -= dv
-    depois_count[destino]++
-    depois_dev[destino] += dv
+    after_count[source]--
+    after_dev[source] -= dv
+    after_count[destination]++
+    after_dev[destination] += dv
 }
 
 END {
-    for (i = 1; i <= ordem_n; i++) {
-        s = ordem[i]
-        print s "," antes_count[s] "," antes_dev[s] "," depois_count[s] "," depois_dev[s]
+    for (i = 1; i <= order_n; i++) {
+        s = order[i]
+        print s "," before_count[s] "," before_dev[s] "," after_count[s] "," after_dev[s]
     }
 }

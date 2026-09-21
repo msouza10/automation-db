@@ -17,101 +17,101 @@ new_fake_project() {
 # Caso 1: numero errado de argumentos
 out=$("$BALANCE_SH" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar com codigo 1 quando faltam argumentos"
-assert_contains "$out" "ERRO" "deve informar erro de uso quando faltam argumentos"
+assert_eq "1" "$rc" "should fail with exit code 1 when arguments are missing"
+assert_contains "$out" "ERROR" "should report a usage error when arguments are missing"
 
 # Caso 2: ambiente inexistente
 csv_tmp=$(mktemp)
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$BALANCE_SH" ambiente-que-nao-existe "$csv_tmp" 2>&1)
+out=$("$BALANCE_SH" nonexistent-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando o ambiente nao existe"
-assert_contains "$out" "nao encontrado" "deve informar que o ambiente nao foi encontrado"
+assert_eq "1" "$rc" "should fail when the environment does not exist"
+assert_contains "$out" "not found" "should report that the environment was not found"
 rm -f "$csv_tmp"
 
 # Caso 3: csv inexistente com ambiente/config validos
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-MAX_CLIENTES_POR_SERVIDOR=10
-SERVIDOR_RECEBEDOR=srvX
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+MAX_CLIENTS_PER_SERVER=10
+RECEIVER_SERVER=srvX
 EOF
-out=$("$proj/balance.sh" teste-env "$proj/nao-existe.csv" 2>&1)
+out=$("$proj/balance.sh" test-env "$proj/does-not-exist.csv" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando o csv nao existe"
-assert_contains "$out" "csv nao encontrado" "deve informar que o csv nao foi encontrado"
+assert_eq "1" "$rc" "should fail when the csv does not exist"
+assert_contains "$out" "csv not found" "should report that the csv was not found"
 rm -rf "$proj"
 
-# Caso 4: config sem MAX_CLIENTES_POR_SERVIDOR
+# Caso 4: config sem MAX_CLIENTS_PER_SERVER
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-SERVIDOR_RECEBEDOR=srvX
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+RECEIVER_SERVER=srvX
 EOF
-csv_tmp="$proj/dados.csv"
+csv_tmp="$proj/data.csv"
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+out=$("$proj/balance.sh" test-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando MAX_CLIENTES_POR_SERVIDOR nao esta definido"
-assert_contains "$out" "MAX_CLIENTES_POR_SERVIDOR" "deve citar a chave faltante no erro"
+assert_eq "1" "$rc" "should fail when MAX_CLIENTS_PER_SERVER is not defined"
+assert_contains "$out" "MAX_CLIENTS_PER_SERVER" "should cite the missing key in the error"
 rm -rf "$proj"
 
-# Caso 5: MAX_CLIENTES_POR_SERVIDOR nao numerico
+# Caso 5: MAX_CLIENTS_PER_SERVER nao numerico
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-MAX_CLIENTES_POR_SERVIDOR=abc
-SERVIDOR_RECEBEDOR=srvX
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+MAX_CLIENTS_PER_SERVER=abc
+RECEIVER_SERVER=srvX
 EOF
-csv_tmp="$proj/dados.csv"
+csv_tmp="$proj/data.csv"
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+out=$("$proj/balance.sh" test-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando MAX_CLIENTES_POR_SERVIDOR nao e' um inteiro"
-assert_contains "$out" "inteiro" "deve informar que o valor precisa ser um inteiro"
+assert_eq "1" "$rc" "should fail when MAX_CLIENTS_PER_SERVER is not an integer"
+assert_contains "$out" "integer" "should report that the value must be an integer"
 rm -rf "$proj"
 
-# Caso 6b: MAX_DEVICES_POR_SERVIDOR nao numerico (chave opcional, mas se
+# Caso 6b: MAX_DEVICES_PER_SERVER nao numerico (chave opcional, mas se
 # presente precisa ser inteiro)
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-MAX_CLIENTES_POR_SERVIDOR=10
-SERVIDOR_RECEBEDOR=srvX
-MAX_DEVICES_POR_SERVIDOR=abc
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+MAX_CLIENTS_PER_SERVER=10
+RECEIVER_SERVER=srvX
+MAX_DEVICES_PER_SERVER=abc
 EOF
-csv_tmp="$proj/dados.csv"
+csv_tmp="$proj/data.csv"
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+out=$("$proj/balance.sh" test-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando MAX_DEVICES_POR_SERVIDOR nao e' um inteiro"
-assert_contains "$out" "MAX_DEVICES_POR_SERVIDOR" "deve citar a chave invalida no erro"
+assert_eq "1" "$rc" "should fail when MAX_DEVICES_PER_SERVER is not an integer"
+assert_contains "$out" "MAX_DEVICES_PER_SERVER" "should cite the invalid key in the error"
 rm -rf "$proj"
 
-# Caso 6c: MAX_DEVICES_POR_SERVIDOR ausente (opcional) nao deve falhar
+# Caso 6c: MAX_DEVICES_PER_SERVER ausente (opcional) nao deve falhar
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-MAX_CLIENTES_POR_SERVIDOR=10
-SERVIDOR_RECEBEDOR=srvX
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+MAX_CLIENTS_PER_SERVER=10
+RECEIVER_SERVER=srvX
 EOF
-csv_tmp="$proj/dados.csv"
+csv_tmp="$proj/data.csv"
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+out=$("$proj/balance.sh" test-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "0" "$rc" "MAX_DEVICES_POR_SERVIDOR e' opcional, sua ausencia nao deve causar erro"
+assert_eq "0" "$rc" "MAX_DEVICES_PER_SERVER is optional, its absence should not cause an error"
 rm -rf "$proj"
 
-# Caso 6: config sem SERVIDOR_RECEBEDOR
+# Caso 6: config sem RECEIVER_SERVER
 proj=$(new_fake_project)
-mkdir -p "$proj/configs/teste-env"
-cat > "$proj/configs/teste-env/config.conf" <<'EOF'
-MAX_CLIENTES_POR_SERVIDOR=10
+mkdir -p "$proj/configs/test-env"
+cat > "$proj/configs/test-env/config.conf" <<'EOF'
+MAX_CLIENTS_PER_SERVER=10
 EOF
-csv_tmp="$proj/dados.csv"
+csv_tmp="$proj/data.csv"
 echo "Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation" > "$csv_tmp"
-out=$("$proj/balance.sh" teste-env "$csv_tmp" 2>&1)
+out=$("$proj/balance.sh" test-env "$csv_tmp" 2>&1)
 rc=$?
-assert_eq "1" "$rc" "deve falhar quando SERVIDOR_RECEBEDOR nao esta definido"
-assert_contains "$out" "SERVIDOR_RECEBEDOR" "deve citar a chave faltante no erro"
+assert_eq "1" "$rc" "should fail when RECEIVER_SERVER is not defined"
+assert_contains "$out" "RECEIVER_SERVER" "should cite the missing key in the error"
 rm -rf "$proj"

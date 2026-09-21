@@ -13,8 +13,8 @@ assert_eq() {
     if [ "$expected" != "$actual" ]; then
         TESTS_FAILED=$((TESTS_FAILED + 1))
         echo "FAIL: $msg"
-        echo "  esperado: $expected"
-        echo "  obtido:   $actual"
+        echo "  expected: $expected"
+        echo "  actual:   $actual"
         return 1
     fi
     echo "PASS: $msg"
@@ -34,8 +34,8 @@ assert_contains() {
         *)
             TESTS_FAILED=$((TESTS_FAILED + 1))
             echo "FAIL: $msg"
-            echo "  esperava conter: $needle"
-            echo "  obtido:          $haystack"
+            echo "  expected to contain: $needle"
+            echo "  actual:              $haystack"
             return 1
             ;;
     esac
@@ -50,7 +50,7 @@ assert_file_eq() {
     if [ ! -f "$actual_file" ]; then
         TESTS_FAILED=$((TESTS_FAILED + 1))
         echo "FAIL: $msg"
-        echo "  arquivo nao existe: $actual_file"
+        echo "  file does not exist: $actual_file"
         return 1
     fi
     diff_output=$(diff -u "$expected_file" "$actual_file" 2>&1)
@@ -71,7 +71,7 @@ assert_file_missing() {
     if [ -f "$file" ]; then
         TESTS_FAILED=$((TESTS_FAILED + 1))
         echo "FAIL: $msg"
-        echo "  arquivo nao deveria existir: $file"
+        echo "  file should not exist: $file"
         return 1
     fi
     echo "PASS: $msg"

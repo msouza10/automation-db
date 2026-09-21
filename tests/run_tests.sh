@@ -28,5 +28,5 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
 done
 
 echo "===================================="
-echo "TOTAL: $TOTAL_RUN teste(s), $TOTAL_FAILED falha(s)"
+echo "TOTAL: $TOTAL_RUN test(s), $TOTAL_FAILED failure(s)"
 exit "$OVERALL_FAIL"

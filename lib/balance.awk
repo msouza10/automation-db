@@ -16,7 +16,7 @@
 # Saida (stdout): uma linha por movimentacao decidida:
 #   cliente,servidor_origem,servidor_destino,devices
 #
-# Avisos (stderr), prefixados com "AVISO ", quando um servidor excedente
+# Avisos (stderr), prefixados com "WARNING ", quando um servidor excedente
 # nao pode ser totalmente resolvido (falta de clientes moviveis e/ou
 # falta de capacidade de destino).
 #
@@ -44,87 +44,87 @@ NR == 1 { next }
 receiver != "" && $2 == receiver { next }
 
 {
-    cliente[NR] = $1
-    servidor[NR] = $2
+    client[NR] = $1
+    server[NR] = $2
     devices[NR] = ($3 == "" ? 0 : $3) + 0
     count[$2]++
     total_devices[$2] += devices[NR]
-    n_clientes[$2]++
-    clientes_de[$2, n_clientes[$2]] = NR
+    n_clients[$2]++
+    clients_of[$2, n_clients[$2]] = NR
 }
 
 END {
     for (s in count) {
-        excesso_count = (count[s] > max) ? count[s] - max : 0
-        excesso_devices = 0
+        excess_count = (count[s] > max) ? count[s] - max : 0
+        excess_devices = 0
         if (max_devices != "" && total_devices[s] > max_devices) {
-            excesso_devices = total_devices[s] - max_devices
+            excess_devices = total_devices[s] - max_devices
         }
 
-        if (excesso_count > 0 || excesso_devices > 0) {
-            excesso[s] = excesso_count
-            excesso_dev[s] = excesso_devices
+        if (excess_count > 0 || excess_devices > 0) {
+            excess[s] = excess_count
+            excess_dev[s] = excess_devices
         } else if (count[s] < max && !(s in is_excluded) &&
                    (max_devices == "" || total_devices[s] < max_devices)) {
-            capacidade_count[s] = max - count[s]
-            capacidade_devices[s] = (max_devices != "") ? max_devices - total_devices[s] : -1
-            destinos_n++
-            destinos[destinos_n] = s
+            capacity_count[s] = max - count[s]
+            capacity_devices[s] = (max_devices != "") ? max_devices - total_devices[s] : -1
+            destinations_n++
+            destinations[destinations_n] = s
         }
     }
 
-    for (s in excesso) {
-        m = n_clientes[s]
-        for (i = 1; i <= m; i++) ordem[i] = clientes_de[s, i]
-        SORT_DESC = (max_devices != "" && excesso_dev[s] > 0) ? 1 : 0
-        qsort(ordem, 1, m)
+    for (s in excess) {
+        m = n_clients[s]
+        for (i = 1; i <= m; i++) order[i] = clients_of[s, i]
+        SORT_DESC = (max_devices != "" && excess_dev[s] > 0) ? 1 : 0
+        qsort(order, 1, m)
 
-        faltam_count = excesso[s]
-        faltam_devices = excesso_dev[s]
-        for (i = 1; i <= m && (faltam_count > 0 || faltam_devices > 0); i++) {
-            idx = ordem[i]
+        remaining_count = excess[s]
+        remaining_devices = excess_dev[s]
+        for (i = 1; i <= m && (remaining_count > 0 || remaining_devices > 0); i++) {
+            idx = order[i]
             if (devices[idx] > 5000) continue
-            n_mover++
-            mover[n_mover] = idx
-            if (faltam_count > 0) faltam_count--
-            faltam_devices -= devices[idx]
-            if (faltam_devices < 0) faltam_devices = 0
+            n_move++
+            move[n_move] = idx
+            if (remaining_count > 0) remaining_count--
+            remaining_devices -= devices[idx]
+            if (remaining_devices < 0) remaining_devices = 0
         }
-        if (faltam_count > 0 || faltam_devices > 0) {
+        if (remaining_count > 0 || remaining_devices > 0) {
             if (max_devices != "") {
-                print "AVISO " s " permanece " faltam_count " cliente(s) e " faltam_devices " devices acima do limite (sem candidatos moviveis)" > "/dev/stderr"
+                print "WARNING " s " remains " remaining_count " client(s) and " remaining_devices " devices above the limit (no movable candidates)" > "/dev/stderr"
             } else {
-                print "AVISO " s " permanece " faltam_count " cliente(s) acima do limite (sem candidatos moviveis)" > "/dev/stderr"
+                print "WARNING " s " remains " remaining_count " client(s) above the limit (no movable candidates)" > "/dev/stderr"
             }
         }
-        delete ordem
+        delete order
     }
 
-    for (i = 1; i <= n_mover; i++) {
-        idx = mover[i]
-        melhor = ""
-        melhor_cap = 0
-        for (j = 1; j <= destinos_n; j++) {
-            d = destinos[j]
-            if (!(d in capacidade_count)) continue
-            if (capacidade_devices[d] != -1 && capacidade_devices[d] < devices[idx]) continue
-            if (capacidade_count[d] > melhor_cap) {
-                melhor = d
-                melhor_cap = capacidade_count[d]
+    for (i = 1; i <= n_move; i++) {
+        idx = move[i]
+        best = ""
+        best_capacity = 0
+        for (j = 1; j <= destinations_n; j++) {
+            d = destinations[j]
+            if (!(d in capacity_count)) continue
+            if (capacity_devices[d] != -1 && capacity_devices[d] < devices[idx]) continue
+            if (capacity_count[d] > best_capacity) {
+                best = d
+                best_capacity = capacity_count[d]
             }
         }
-        if (melhor == "") {
-            print "AVISO " servidor[idx] " nao conseguiu mover cliente " cliente[idx] " (sem capacidade de destino disponivel)" > "/dev/stderr"
+        if (best == "") {
+            print "WARNING " server[idx] " could not move client " client[idx] " (no destination capacity available)" > "/dev/stderr"
             continue
         }
-        capacidade_count[melhor]--
-        if (capacidade_count[melhor] == 0) delete capacidade_count[melhor]
-        if (capacidade_devices[melhor] != -1) capacidade_devices[melhor] -= devices[idx]
-        print cliente[idx] "," servidor[idx] "," melhor "," devices[idx]
+        capacity_count[best]--
+        if (capacity_count[best] == 0) delete capacity_count[best]
+        if (capacity_devices[best] != -1) capacity_devices[best] -= devices[idx]
+        print client[idx] "," server[idx] "," best "," devices[idx]
     }
 }
 
-function menor(a, b) {
+function less_than(a, b) {
     return SORT_DESC ? (a > b) : (a < b)
 }
 
@@ -133,7 +133,7 @@ function qsort(A, left, right,    i, last) {
     swap(A, left, int((left + right) / 2))
     last = left
     for (i = left + 1; i <= right; i++) {
-        if (menor(devices[A[i]], devices[A[left]])) {
+        if (less_than(devices[A[i]], devices[A[left]])) {
             last++
             swap(A, last, i)
         }
