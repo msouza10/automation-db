@@ -3,3 +3,6 @@ results/
 logs/
 packed/
 *.csv
+*.xlsx
+*.xls
+*.out
