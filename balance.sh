@@ -98,8 +98,22 @@ format_moves "$MOVES_TMP"
 echo ""
 echo "=== SUMMARY BY SERVER ==="
 {
-    echo "SERVER,LOST,RECEIVED"
-    awk -F',' '{ lost[$2]++; received[$3]++; seen[$2]=1; seen[$3]=1 } END { for (s in seen) print s","(lost[s]+0)","(received[s]+0) }' "$MOVES_TMP" | sort
+    echo "SERVER,LOST,RECEIVED,DEVICES_BEFORE,DEVICES_CHANGE"
+    awk -F',' '
+        NR == FNR { devices_before[$1] = $3; next }
+        {
+            lost[$2]++; received[$3]++
+            lost_dev[$2] += $4; received_dev[$3] += $4
+            seen[$2] = 1; seen[$3] = 1
+        }
+        END {
+            for (s in seen) {
+                change = (received_dev[s] + 0) - (lost_dev[s] + 0)
+                sign = (change > 0) ? "+" : ""
+                print s "," (lost[s] + 0) "," (received[s] + 0) "," (devices_before[s] + 0) "," sign change
+            }
+        }
+    ' "$REPORT_TMP" "$MOVES_TMP" | sort
 } | column -t -s','
 
 echo ""
