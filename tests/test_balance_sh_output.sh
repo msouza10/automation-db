@@ -41,12 +41,12 @@ assert_file_missing "$proj/results/test-env/to_srv-old.txt" "to_*.txt from a pre
 expected_result_csv=$(mktemp)
 cat > "$expected_result_csv" <<'EOF'
 Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation,New Server,Qty New Server
-c1,srv1,50,-,2024-01-01,srv1,50
+c1,srv1,50,-,2024-01-01,,
 c2,srv1,10,-,2024-01-01,srv2,10
-c3,srv1,30,-,2024-01-01,srv1,30
-c4,srv2,1,-,2024-01-01,srv2,1
+c3,srv1,30,-,2024-01-01,,
+c4,srv2,1,-,2024-01-01,,
 EOF
-assert_file_eq "$expected_result_csv" "$proj/results/test-env/result.csv" "result.csv should have the original rows plus New Server/Qty New Server"
+assert_file_eq "$expected_result_csv" "$proj/results/test-env/result.csv" "result.csv should only fill New Server/Qty for clients that actually moved"
 rm -f "$expected_result_csv"
 
 rm -rf "$proj"

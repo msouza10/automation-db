@@ -1,9 +1,9 @@
 # lib/export_results.awk
 #
 # Gera a planilha final: a mesma planilha de entrada, com duas colunas
-# adicionadas no final - o servidor onde cada cliente ficou depois do
-# balanceamento e a quantidade de devices dele la. Cliente que nao foi
-# movido repete o mesmo servidor/quantidade que ja tinha.
+# adicionadas no final - o servidor de destino de cada cliente que foi
+# movido e a quantidade de devices dele la. Cliente que nao foi movido
+# fica com as duas colunas em branco.
 #
 # Uso:
 #   awk -f lib/export_results.awk planilha.csv movimentacoes.csv
@@ -24,11 +24,7 @@ FNR == NR {
     sub(/\r$/, "", $0)
     n_lines++
     line[n_lines] = $0
-    if (FNR > 1) {
-        client_of[n_lines] = $1
-        server_of[n_lines] = $2
-        devices_of[n_lines] = ($3 == "" ? 0 : $3) + 0
-    }
+    if (FNR > 1) client_of[n_lines] = $1
     next
 }
 
@@ -49,7 +45,7 @@ END {
         if (c in new_server) {
             print line[i] "," new_server[c] "," new_qty[c]
         } else {
-            print line[i] "," server_of[i] "," devices_of[i]
+            print line[i] ",,"
         }
     }
 }
