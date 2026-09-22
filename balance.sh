@@ -6,6 +6,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AWK_SCRIPT="$SCRIPT_DIR/lib/balance.awk"
 REPORT_SCRIPT="$SCRIPT_DIR/lib/report.awk"
+EXPORT_SCRIPT="$SCRIPT_DIR/lib/export_results.awk"
 
 error() {
     echo "ERROR: $1" >&2
@@ -74,6 +75,8 @@ awk -v max="$MAX_CLIENTS_PER_SERVER" \
 TOTAL_MOVED=$(wc -l < "$MOVES_TMP" | tr -d ' ')
 TOTAL_WARNINGS=$(wc -l < "$STDERR_TMP" | tr -d ' ')
 
+RESULT_CSV="$RESULTS_DIR/result.csv"
+
 if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
     rm -f "$RESULTS_DIR"/to_*.txt
@@ -82,6 +85,8 @@ if [ "$DRY_RUN" -eq 0 ]; then
     for destination in $DESTINATIONS; do
         awk -F',' -v d="$destination" '$3==d {print $1}' "$MOVES_TMP" | sort > "$RESULTS_DIR/to_$destination.txt"
     done
+
+    awk -f "$EXPORT_SCRIPT" "$CSV" "$MOVES_TMP" > "$RESULT_CSV"
 fi
 
 REPORT_TMP=$(mktemp)
@@ -170,6 +175,7 @@ rm -f "$MOVES_TMP" "$STDERR_TMP"
 
 echo ""
 echo "Summary: $TOTAL_MOVED client(s) moved in $ENV. Full log: $LOG_FILE"
+echo "Result CSV: $RESULT_CSV"
 if [ "$TOTAL_WARNINGS" -gt 0 ]; then
     echo "$TOTAL_WARNINGS warning(s) - see $LOG_FILE"
 fi

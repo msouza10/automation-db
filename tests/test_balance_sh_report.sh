@@ -84,6 +84,7 @@ assert_contains "$out2" "c2: srv1 -> srv2 (10 devices)" "--dry-run should show t
 assert_contains "$out2" "dry-run" "--dry-run should make clear that nothing was written"
 
 assert_file_missing "$proj2/results/test-env/to_srv2.txt" "--dry-run should not create result files"
+assert_file_missing "$proj2/results/test-env/result.csv" "--dry-run should not create result.csv"
 [ -d "$proj2/logs/test-env" ] && log_count=$(find "$proj2/logs/test-env" -name 'balance_*.log' 2>/dev/null | wc -l) || log_count=0
 assert_eq "0" "$log_count" "--dry-run should not write any log file"
 

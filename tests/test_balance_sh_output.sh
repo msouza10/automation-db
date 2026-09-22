@@ -38,6 +38,17 @@ rm -f "$expected1"
 assert_file_missing "$proj/results/test-env/to_srv1.txt" "srv1 received no one, should not have a destination file"
 assert_file_missing "$proj/results/test-env/to_srv-old.txt" "to_*.txt from a previous run should be removed"
 
+expected_result_csv=$(mktemp)
+cat > "$expected_result_csv" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation,New Server,Qty New Server
+c1,srv1,50,-,2024-01-01,srv1,50
+c2,srv1,10,-,2024-01-01,srv2,10
+c3,srv1,30,-,2024-01-01,srv1,30
+c4,srv2,1,-,2024-01-01,srv2,1
+EOF
+assert_file_eq "$expected_result_csv" "$proj/results/test-env/result.csv" "result.csv should have the original rows plus New Server/Qty New Server"
+rm -f "$expected_result_csv"
+
 rm -rf "$proj"
 
 # Caso: nenhuma movimentacao necessaria -> nenhum arquivo to_*.txt gerado
