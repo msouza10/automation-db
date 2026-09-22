@@ -201,3 +201,33 @@ err12=$(cat "$stderr12")
 assert_eq "" "$out12" "client >5000 devices cannot be moved even when the excess is device-based"
 assert_contains "$err12" "5000 devices" "warning should cite the amount of devices that remains above the limit"
 rm -f "$csv12" "$stderr12"
+
+# Caso 13: dois destinos com a MESMA capacidade de contagem (empate), mas um
+# com muita folga de devices e outro com pouca. Um cliente pequeno (que
+# caberia em qualquer um dos dois) nao pode "roubar" a vaga do destino que
+# um cliente maior, processado depois, precisa especificamente para caber
+# em devices. Reproduz bug real: escolher destino so pela contagem de vagas
+# livres (ignorando o encaixe de devices) podia deixar o cliente maior sem
+# destino mesmo havendo capacidade de sobra em outro servidor.
+csv13=$(mktemp)
+cat > "$csv13" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+maria,srv1,5,-,2024-01-01
+joao,srv1,800,-,2024-01-01
+extra1,srv1,900,-,2024-01-01
+extra2,srv1,900,-,2024-01-01
+a1,destA,0,-,2024-01-01
+b1,destB,4990,-,2024-01-01
+EOF
+# max=2: srv1 tem 4 (excedente=2, os 2 menores sao maria=5 e joao=800).
+# destA: 1 vaga de cliente, 5000 de folga em devices (cabe joao facil).
+# destB: 1 vaga de cliente (empate com destA), so 10 de folga em devices
+# (cabe so a maria). Se maria for pro destA por acaso, joao fica sem
+# destino mesmo o destA tendo folga de sobra - so passa se o algoritmo
+# considerar o encaixe de devices na escolha, nao so a contagem de vagas.
+stderr13=$(mktemp)
+out13=$(run_awk "$csv13" 2 "" "" 5000 2>"$stderr13")
+err13=$(cat "$stderr13")
+assert_eq "$(printf 'joao,srv1,destA,800\nmaria,srv1,destB,5')" "$out13" "both movable clients must find a destination when enough total capacity exists, regardless of tie in free client slots"
+assert_eq "" "$err13" "no warning expected, there is enough capacity for both clients when matched correctly"
+rm -f "$csv13" "$stderr13"

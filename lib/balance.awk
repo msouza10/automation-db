@@ -27,7 +27,13 @@
 # movimentacoes); quando o excesso e' so de contagem, continua sendo do
 # menor para o maior, como antes. Um servidor so e' destino elegivel se
 # tiver folga tanto em contagem quanto (quando configurado) em devices
-# suficiente para o cliente especifico sendo movido.
+# suficiente para o cliente especifico sendo movido. Entre os destinos
+# elegiveis, quando ha limite de devices configurado, e' escolhido o de
+# MENOR folga de devices suficiente (best fit) - isso evita que um
+# cliente pequeno ocupe a vaga de um servidor com muita folga de devices
+# que um cliente maior, processado depois, precisaria especificamente;
+# sem limite de devices, continua escolhendo o destino com mais vagas de
+# contagem livres, como antes desta opcao existir.
 
 BEGIN {
     FS = ","
@@ -100,17 +106,27 @@ END {
         delete order
     }
 
+    if (max_devices != "" && n_move > 1) {
+        SORT_DESC = 1
+        qsort(move, 1, n_move)
+    }
+
     for (i = 1; i <= n_move; i++) {
         idx = move[i]
         best = ""
-        best_capacity = 0
         for (j = 1; j <= destinations_n; j++) {
             d = destinations[j]
             if (!(d in capacity_count)) continue
             if (capacity_devices[d] != -1 && capacity_devices[d] < devices[idx]) continue
-            if (capacity_count[d] > best_capacity) {
+            if (best == "") {
                 best = d
-                best_capacity = capacity_count[d]
+            } else if (max_devices != "") {
+                # best fit: entre os que cabem, prefere o destino com MENOS
+                # folga de devices sobrando (preserva destinos com muita
+                # folga para clientes maiores que ainda vao ser processados)
+                if (capacity_devices[d] < capacity_devices[best]) best = d
+            } else if (capacity_count[d] > capacity_count[best]) {
+                best = d
             }
         }
         if (best == "") {
