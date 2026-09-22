@@ -96,31 +96,44 @@ echo "=== MOVES ==="
 format_moves "$MOVES_TMP"
 
 echo ""
-echo "=== SUMMARY BY SERVER ==="
-{
-    echo "SERVER,LOST,RECEIVED,DEVICES_BEFORE,DEVICES_CHANGE"
-    awk -F',' '
-        NR == FNR { devices_before[$1] = $3; next }
-        {
-            lost[$2]++; received[$3]++
-            lost_dev[$2] += $4; received_dev[$3] += $4
-            seen[$2] = 1; seen[$3] = 1
-        }
-        END {
-            for (s in seen) {
-                change = (received_dev[s] + 0) - (lost_dev[s] + 0)
-                sign = (change > 0) ? "+" : ""
-                print s "," (lost[s] + 0) "," (received[s] + 0) "," (devices_before[s] + 0) "," sign change
-            }
-        }
-    ' "$REPORT_TMP" "$MOVES_TMP" | sort
-} | column -t -s','
-
-echo ""
 echo "=== AFTER ==="
 { echo "SERVER,CLIENTS,DEVICES"; cut -d',' -f1,4,5 "$REPORT_TMP"; } | column -t -s','
 
-rm -f "$REPORT_TMP"
+echo ""
+echo "=== SUMMARY BY SERVER ==="
+SUMMARY_TMP=$(mktemp)
+awk -F',' '
+    NR == FNR {
+        clients_before[$1] = $2
+        devices_before[$1] = $3
+        clients_after[$1] = $4
+        devices_after[$1] = $5
+        next
+    }
+    {
+        lost[$2]++; received[$3]++
+        seen[$2] = 1; seen[$3] = 1
+    }
+    END {
+        for (s in seen) {
+            change = devices_after[s] - devices_before[s]
+            sign = (change > 0) ? "+" : ""
+            print s "," clients_before[s] "," clients_after[s] "," (lost[s] + 0) "," (received[s] + 0) "," devices_before[s] "," devices_after[s] "," sign change
+        }
+    }
+' "$REPORT_TMP" "$MOVES_TMP" | sort > "$SUMMARY_TMP"
+
+{
+    echo "SERVER,CLIENTS_BEFORE,CLIENTS_AFTER,LOST,RECEIVED,DEVICES_BEFORE,DEVICES_AFTER,DEVICES_CHANGE"
+    cat "$SUMMARY_TMP"
+} | column -t -s','
+
+SERVERS_AFFECTED=$(wc -l < "$SUMMARY_TMP" | tr -d ' ')
+TOTAL_DEVICES_MOVED=$(awk -F',' '{sum += $4} END {print sum + 0}' "$MOVES_TMP")
+echo ""
+echo "TOTAL: $TOTAL_MOVED client(s) moved, $TOTAL_DEVICES_MOVED device(s) moved across $SERVERS_AFFECTED server(s) affected."
+
+rm -f "$REPORT_TMP" "$SUMMARY_TMP"
 
 if [ "$DRY_RUN" -eq 1 ]; then
     echo ""

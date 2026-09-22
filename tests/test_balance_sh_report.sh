@@ -39,6 +39,12 @@ assert_contains "$out" "=== SUMMARY BY SERVER ===" "should print the per-server 
 assert_contains "$out" "srv1" "table should mention srv1"
 assert_contains "$out" "srv2" "table should mention srv2"
 assert_contains "$out" "c2: srv1 -> srv2 (10 devices)" "move list should mention the move of c2"
+assert_contains "$out" "DEVICES_BEFORE" "summary should include the devices-before column"
+assert_contains "$out" "DEVICES_AFTER" "summary should include the devices-after column"
+assert_contains "$out" "DEVICES_CHANGE" "summary should include the signed devices-change column"
+assert_contains "$out" "-10" "summary should show srv1 losing 10 devices with a minus sign"
+assert_contains "$out" "+10" "summary should show srv2 gaining 10 devices with a plus sign"
+assert_contains "$out" "TOTAL: 1 client(s) moved, 10 device(s) moved across 2 server(s) affected." "should print the aggregate totals line"
 
 expected_srv2=$(mktemp)
 echo "c2" > "$expected_srv2"
