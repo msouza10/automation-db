@@ -32,8 +32,9 @@ c13,srv9,1,-,2024-01-01
 c14,srv9,1,-,2024-01-01
 EOF
 # srv1: 4 clientes (max=3) -> excedente 1, menor=c2(10)
-# srv3: 4 clientes, EXCLUIDO de receber, mas pode perder -> excedente 1, menor=c6(5)
-# srv2: 1 cliente -> capacidade 2, unico destino elegivel -> recebe c2 e c6
+# srv3: 4 clientes, EXCLUIDO -> fica totalmente fora do balanceamento, mesmo
+# acima do limite, nao perde ninguem (igual ao receiver)
+# srv2: 1 cliente -> capacidade 2, unico destino elegivel -> recebe c2
 # srv9: 5 clientes, e' o RECEIVER_SERVER -> fora do balanceamento, nao gera nada
 
 stdout_tmp=$(mktemp)
@@ -42,17 +43,27 @@ rc=$?
 assert_eq "0" "$rc" "end-to-end run should finish successfully"
 
 expected_srv2=$(mktemp)
-printf 'c2\nc6\n' > "$expected_srv2"
-assert_file_eq "$expected_srv2" "$proj/results/test-integration/to_srv2.txt" "to_srv2.txt should contain c2 and c6, in alphabetical order"
+printf 'c2\n' > "$expected_srv2"
+assert_file_eq "$expected_srv2" "$proj/results/test-integration/to_srv2.txt" "to_srv2.txt should contain only c2"
 rm -f "$expected_srv2"
 
 assert_file_missing "$proj/results/test-integration/to_srv1.txt" "srv1 should not receive anyone"
-assert_file_missing "$proj/results/test-integration/to_srv3.txt" "srv3 is excluded from receiving, should have no file"
+assert_file_missing "$proj/results/test-integration/to_srv3.txt" "srv3 is excluded, should have no file (does not receive)"
 assert_file_missing "$proj/results/test-integration/to_srv9.txt" "srv9 is the receiver, it is out of the balancing"
 
 log_file=$(find "$proj/logs/test-integration" -name 'balance_*.log' 2>/dev/null | head -n1)
 log_content=$(cat "$log_file")
-assert_contains "$log_content" "2 client(s) moved, 0 warning(s)" "log should summarize the 2 moves with no warnings"
+assert_contains "$log_content" "1 client(s) moved, 0 warning(s)" "log should summarize the 1 move with no warnings"
+case "$log_content" in
+    *"srv3 ->"*|*"-> srv3"*)
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo "FAIL: srv3 (excluded) should not appear in any move in the log"
+        ;;
+    *)
+        echo "PASS: srv3 (excluded) does not appear in any move in the log"
+        ;;
+esac
+TESTS_RUN=$((TESTS_RUN + 1))
 case "$log_content" in
     *"srv9 ->"*|*"-> srv9"*)
         TESTS_FAILED=$((TESTS_FAILED + 1))

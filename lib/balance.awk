@@ -9,6 +9,10 @@
 # max_devices e' opcional: se omitido/vazio, nenhum limite de devices por
 # servidor e' aplicado (so o limite de contagem de clientes, "max").
 #
+# excluded_csv e' opcional: servidores listados ali ficam totalmente fora
+# do balanceamento (igual ao receiver) - nunca perdem nem recebem
+# clientes por aqui, mesmo passando de max ou max_devices.
+#
 # Entrada: CSV com header na 1a linha; coluna A = cliente, coluna B =
 # servidor atual, coluna C = quantidade de devices. Colunas extras sao
 # ignoradas.
@@ -49,6 +53,8 @@ NR == 1 { next }
 
 receiver != "" && $2 == receiver { next }
 
+$2 in is_excluded { next }
+
 {
     client[NR] = $1
     server[NR] = $2
@@ -70,7 +76,7 @@ END {
         if (excess_count > 0 || excess_devices > 0) {
             excess[s] = excess_count
             excess_dev[s] = excess_devices
-        } else if (count[s] < max && !(s in is_excluded) &&
+        } else if (count[s] < max &&
                    (max_devices == "" || total_devices[s] < max_devices)) {
             capacity_count[s] = max - count[s]
             capacity_devices[s] = (max_devices != "") ? max_devices - total_devices[s] : -1

@@ -69,6 +69,24 @@ out4=$(run_awk "$csv4" 3 "srv2" "")
 assert_eq "c2,srv1,srv3,10" "$out4" "excluded server should never be chosen as destination, even with more headroom"
 rm -f "$csv4"
 
+# Caso 4b: servidor excluido fica TOTALMENTE fora do balanceamento (igual ao
+# receiver) - mesmo passando do limite de clientes, nao perde ninguem
+csv4b=$(mktemp)
+cat > "$csv4b" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,1,-,2024-01-01
+c2,srv1,1,-,2024-01-01
+c3,srv2,50,-,2024-01-01
+c4,srv2,5,-,2024-01-01
+c5,srv2,7,-,2024-01-01
+c6,srv2,9,-,2024-01-01
+EOF
+# max=3: srv2 tem 4 clientes (passaria do limite), mas esta EXCLUIDO -> nao
+# gera nenhuma movimentacao para/dele, mesmo estando acima do limite.
+out4b=$(run_awk "$csv4b" 3 "srv2" "")
+assert_eq "" "$out4b" "excluded server must not lose clients either, even above the limit"
+rm -f "$csv4b"
+
 # Caso 5: atribuicao gulosa escolhe sempre o destino com mais capacidade disponivel
 csv5=$(mktemp)
 cat > "$csv5" <<'EOF'
