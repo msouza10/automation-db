@@ -36,7 +36,13 @@ CSV="$2"
 
 CONFIG_DIR="$SCRIPT_DIR/configs/$ENV"
 CONFIG_FILE="$CONFIG_DIR/config.conf"
-RESULTS_DIR="$SCRIPT_DIR/results/$ENV"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RESULTS_DIR="$SCRIPT_DIR/results/$ENV/$TIMESTAMP"
+if [ -d "$RESULTS_DIR" ]; then
+    # colisao de timestamp (duas execucoes no mesmo segundo): nunca reusar
+    # uma pasta ja existente, desambigua com o PID desta execucao
+    RESULTS_DIR="${RESULTS_DIR}_$$"
+fi
 LOGS_DIR="$SCRIPT_DIR/logs/$ENV"
 
 [ -d "$CONFIG_DIR" ] || error "environment '$ENV' not found (expected $CONFIG_DIR)"
@@ -76,36 +82,35 @@ TOTAL_MOVED=$(wc -l < "$MOVES_TMP" | tr -d ' ')
 TOTAL_WARNINGS=$(wc -l < "$STDERR_TMP" | tr -d ' ')
 
 RESULT_CSV="$RESULTS_DIR/result.csv"
+PACKED_DIR="$SCRIPT_DIR/packed/$ENV"
+ZIP_FILE="$PACKED_DIR/migration_${ENV}-$(date +%m-%d-%Y)_${TIMESTAMP#*_}.zip"
+ZIP_CREATED=0
 
 if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
-    rm -f "$RESULTS_DIR"/to_*.txt
 
     DESTINATIONS=$(cut -d',' -f3 "$MOVES_TMP" | sort -u)
     for destination in $DESTINATIONS; do
-        awk -F',' -v d="$destination" '$3==d {print $1}' "$MOVES_TMP" | sort > "$RESULTS_DIR/to_$destination.txt"
+        awk -F',' -v d="$destination" '$3==d' "$MOVES_TMP" \
+            | sort -t',' -k4,4nr -k1,1 \
+            | cut -d',' -f1 > "$RESULTS_DIR/to_$destination.txt"
     done
 
     awk -f "$EXPORT_SCRIPT" "$CSV" "$MOVES_TMP" > "$RESULT_CSV"
+
+    if [ "$TOTAL_MOVED" -gt 0 ]; then
+        mkdir -p "$PACKED_DIR"
+        if command -v zip >/dev/null 2>&1 && zip -j -q "$ZIP_FILE" "$RESULTS_DIR"/to_*.txt; then
+            ZIP_CREATED=1
+        else
+            rm -f "$ZIP_FILE"
+        fi
+    fi
 fi
 
 REPORT_TMP=$(mktemp)
 awk -f "$REPORT_SCRIPT" "$CSV" "$MOVES_TMP" | sort > "$REPORT_TMP"
 
-echo ""
-echo "=== BEFORE ==="
-{ echo "SERVER,CLIENTS,DEVICES"; cut -d',' -f1,2,3 "$REPORT_TMP"; } | column -t -s','
-
-echo ""
-echo "=== MOVES ==="
-format_moves "$MOVES_TMP"
-
-echo ""
-echo "=== AFTER ==="
-{ echo "SERVER,CLIENTS,DEVICES"; cut -d',' -f1,4,5 "$REPORT_TMP"; } | column -t -s','
-
-echo ""
-echo "=== SUMMARY BY SERVER ==="
 SUMMARY_TMP=$(mktemp)
 awk -F',' '
     NR == FNR {
@@ -128,15 +133,56 @@ awk -F',' '
     }
 ' "$REPORT_TMP" "$MOVES_TMP" | sort > "$SUMMARY_TMP"
 
-{
-    echo "SERVER,CLIENTS_BEFORE,CLIENTS_AFTER,LOST,RECEIVED,DEVICES_BEFORE,DEVICES_AFTER,DEVICES_CHANGE"
-    cat "$SUMMARY_TMP"
-} | column -t -s','
-
 SERVERS_AFFECTED=$(wc -l < "$SUMMARY_TMP" | tr -d ' ')
 TOTAL_DEVICES_MOVED=$(awk -F',' '{sum += $4} END {print sum + 0}' "$MOVES_TMP")
-echo ""
-echo "TOTAL: $TOTAL_MOVED client(s) moved, $TOTAL_DEVICES_MOVED device(s) moved across $SERVERS_AFFECTED server(s) affected."
+
+# capturado num arquivo tambem, pra poder ser reaproveitado no log de execucao
+REPORT_TXT_TMP=$(mktemp)
+{
+    echo ""
+    echo "=== BEFORE ==="
+    { echo "SERVER,CLIENTS,DEVICES"; cut -d',' -f1,2,3 "$REPORT_TMP"; } | column -t -s','
+
+    echo ""
+    echo "=== MOVES ==="
+    format_moves "$MOVES_TMP"
+
+    echo ""
+    echo "=== AFTER ==="
+    { echo "SERVER,CLIENTS,DEVICES"; cut -d',' -f1,4,5 "$REPORT_TMP"; } | column -t -s','
+
+    echo ""
+    echo "=== SUMMARY BY SERVER ==="
+    {
+        echo "SERVER,CLIENTS_BEFORE,CLIENTS_AFTER,LOST,RECEIVED,DEVICES_BEFORE,DEVICES_AFTER,DEVICES_CHANGE"
+        cat "$SUMMARY_TMP"
+    } | column -t -s','
+
+    echo ""
+    echo "TOTAL: $TOTAL_MOVED client(s) moved, $TOTAL_DEVICES_MOVED device(s) moved across $SERVERS_AFFECTED server(s) affected."
+
+    echo ""
+    echo "=== DESTINATIONS BY LARGEST CLIENT ==="
+    if [ -s "$MOVES_TMP" ]; then
+        {
+            echo "SERVER,LARGEST_CLIENT,DEVICES"
+            awk -F',' '
+                {
+                    d = $3; c = $1; dv = $4 + 0
+                    if (!(d in maxdev) || dv > maxdev[d] || (dv == maxdev[d] && c < maxclient[d])) {
+                        maxdev[d] = dv
+                        maxclient[d] = c
+                    }
+                }
+                END {
+                    for (d in maxdev) print d "," maxclient[d] "," maxdev[d]
+                }
+            ' "$MOVES_TMP" | sort -t',' -k3,3nr -k1,1
+        } | column -t -s','
+    else
+        echo "  (none)"
+    fi
+} | tee "$REPORT_TXT_TMP"
 
 rm -f "$REPORT_TMP" "$SUMMARY_TMP"
 
@@ -147,11 +193,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
         echo "$TOTAL_WARNINGS warning(s):"
         sed 's/^/  /' "$STDERR_TMP"
     fi
-    rm -f "$MOVES_TMP" "$STDERR_TMP"
+    rm -f "$MOVES_TMP" "$STDERR_TMP" "$REPORT_TXT_TMP"
     exit 0
 fi
 
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$LOGS_DIR/balance_${TIMESTAMP}.log"
 
 {
@@ -159,9 +204,7 @@ LOG_FILE="$LOGS_DIR/balance_${TIMESTAMP}.log"
     echo "Environment: $ENV"
     echo "CSV: $CSV"
     echo "Config: $CONFIG_FILE"
-    echo ""
-    echo "Moves:"
-    format_moves "$MOVES_TMP"
+    cat "$REPORT_TXT_TMP"
     echo ""
     if [ "$TOTAL_WARNINGS" -gt 0 ]; then
         echo "Warnings:"
@@ -171,11 +214,18 @@ LOG_FILE="$LOGS_DIR/balance_${TIMESTAMP}.log"
     echo "Summary: $TOTAL_MOVED client(s) moved, $TOTAL_WARNINGS warning(s)"
 } > "$LOG_FILE"
 
-rm -f "$MOVES_TMP" "$STDERR_TMP"
+rm -f "$MOVES_TMP" "$STDERR_TMP" "$REPORT_TXT_TMP"
 
 echo ""
 echo "Summary: $TOTAL_MOVED client(s) moved in $ENV. Full log: $LOG_FILE"
 echo "Result CSV: $RESULT_CSV"
+if [ "$TOTAL_MOVED" -gt 0 ]; then
+    if [ "$ZIP_CREATED" -eq 1 ]; then
+        echo "Zip: $ZIP_FILE"
+    else
+        echo "WARNING: could not create zip $ZIP_FILE (is 'zip' installed?)"
+    fi
+fi
 if [ "$TOTAL_WARNINGS" -gt 0 ]; then
     echo "$TOTAL_WARNINGS warning(s) - see $LOG_FILE"
 fi

@@ -44,12 +44,12 @@ assert_eq "0" "$rc" "end-to-end run should finish successfully"
 
 expected_srv2=$(mktemp)
 printf 'c2\n' > "$expected_srv2"
-assert_file_eq "$expected_srv2" "$proj/results/test-integration/to_srv2.txt" "to_srv2.txt should contain only c2"
+assert_file_eq "$expected_srv2" "$(find_file "$proj/results/test-integration" to_srv2.txt)" "to_srv2.txt should contain only c2"
 rm -f "$expected_srv2"
 
-assert_file_missing "$proj/results/test-integration/to_srv1.txt" "srv1 should not receive anyone"
-assert_file_missing "$proj/results/test-integration/to_srv3.txt" "srv3 is excluded, should have no file (does not receive)"
-assert_file_missing "$proj/results/test-integration/to_srv9.txt" "srv9 is the receiver, it is out of the balancing"
+assert_file_missing "$(find_file "$proj/results/test-integration" to_srv1.txt)" "srv1 should not receive anyone"
+assert_file_missing "$(find_file "$proj/results/test-integration" to_srv3.txt)" "srv3 is excluded, should have no file (does not receive)"
+assert_file_missing "$(find_file "$proj/results/test-integration" to_srv9.txt)" "srv9 is the receiver, it is out of the balancing"
 
 log_file=$(find "$proj/logs/test-integration" -name 'balance_*.log' 2>/dev/null | head -n1)
 log_content=$(cat "$log_file")
@@ -109,7 +109,7 @@ assert_eq "0" "$rc2" "run with MAX_DEVICES_PER_SERVER should finish successfully
 
 expected_srv2_2=$(mktemp)
 printf 'c1\n' > "$expected_srv2_2"
-assert_file_eq "$expected_srv2_2" "$proj2/results/test-devices/to_srv2.txt" "to_srv2.txt should contain only c1 (device excess resolved with 1 move)"
+assert_file_eq "$expected_srv2_2" "$(find_file "$proj2/results/test-devices" to_srv2.txt)" "to_srv2.txt should contain only c1 (device excess resolved with 1 move)"
 rm -f "$expected_srv2_2"
 
 log_file2=$(find "$proj2/logs/test-devices" -name 'balance_*.log' 2>/dev/null | head -n1)

@@ -77,3 +77,11 @@ assert_file_missing() {
     echo "PASS: $msg"
     return 0
 }
+
+# find_file DIR NAME - localiza um arquivo por nome em qualquer subpasta de DIR
+# (usado quando o caminho exato contem uma subpasta gerada em runtime, como
+# o timestamp de results/<env>/<timestamp>/). Imprime o primeiro caminho
+# encontrado, ou nada se nao existir.
+find_file() {
+    find "$1" -type f -name "$2" 2>/dev/null | head -n1
+}

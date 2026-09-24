@@ -36,6 +36,10 @@ assert_contains "$log_file" "balance_" "should generate a log file matching bala
 log_content=$(cat "$log_file")
 assert_contains "$log_content" "c2: srv1 -> srv2 (10 devices)" "log should describe the move of c2"
 assert_contains "$log_content" "1 client(s) moved, 0 warning(s)" "log should summarize total moves and warnings"
+assert_contains "$log_content" "=== BEFORE ===" "log should also include the BEFORE table, not just stdout"
+assert_contains "$log_content" "=== AFTER ===" "log should also include the AFTER table, not just stdout"
+assert_contains "$log_content" "=== SUMMARY BY SERVER ===" "log should also include the per-server summary table, not just stdout"
+assert_contains "$log_content" "TOTAL: 1 client(s) moved, 10 device(s) moved across 2 server(s) affected." "log should also include the aggregate TOTAL line, not just stdout"
 
 stdout_content=$(cat "$stdout_tmp")
 assert_contains "$stdout_content" "1 client(s) moved" "stdout should show a short summary"

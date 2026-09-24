@@ -249,3 +249,24 @@ err13=$(cat "$stderr13")
 assert_eq "$(printf 'joao,srv1,destA,800\nmaria,srv1,destB,5')" "$out13" "both movable clients must find a destination when enough total capacity exists, regardless of tie in free client slots"
 assert_eq "" "$err13" "no warning expected, there is enough capacity for both clients when matched correctly"
 rm -f "$csv13" "$stderr13"
+
+# Caso 14: linha com uma virgula a mais que o header (ex.: nome de cliente
+# com virgula sem estar entre aspas, "Acme, Inc.") teria os campos
+# deslocados se fosse processada (o que confundiria servidor/devices) -
+# deve gerar warning e ser ignorada, sem corromper o balanceamento das
+# linhas bem formadas
+csv14=$(mktemp)
+cat > "$csv14" <<'EOF'
+Account ID,DBServer,Enrolled Devices,Licenses Purchased,Account Date Creation
+c1,srv1,50,-,2024-01-01
+c2,srv1,10,-,2024-01-01
+Acme, Inc.,srv1,999,-,2024-01-01
+c3,srv1,30,-,2024-01-01
+c4,srv2,1,-,2024-01-01
+EOF
+stderr14=$(mktemp)
+out14=$(run_awk "$csv14" 2 "" "" 2>"$stderr14")
+err14=$(cat "$stderr14")
+assert_eq "c2,srv1,srv2,10" "$out14" "malformed row should be skipped and not throw off the balancing of the well-formed rows (c1/c2/c3 on srv1, only c2 should move)"
+assert_contains "$err14" "WARNING" "a row with a different field count than the header (likely an unescaped comma) should trigger a warning"
+rm -f "$csv14" "$stderr14"

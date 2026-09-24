@@ -22,7 +22,10 @@
 #
 # Avisos (stderr), prefixados com "WARNING ", quando um servidor excedente
 # nao pode ser totalmente resolvido (falta de clientes moviveis e/ou
-# falta de capacidade de destino).
+# falta de capacidade de destino), ou quando uma linha tem uma quantidade
+# de campos diferente do header (sinal de virgula sem escapar em algum
+# campo, como um nome de cliente) - essa linha e' ignorada em vez de
+# processada com campos deslocados.
 #
 # Um servidor fica excedente se ultrapassar QUALQUER um dos dois
 # limites (contagem de clientes OU total de devices). Quando o excesso
@@ -49,7 +52,12 @@ BEGIN {
 
 { sub(/\r$/, "", $0) }
 
-NR == 1 { next }
+NR == 1 { header_nf = NF; next }
+
+NF != header_nf {
+    print "WARNING skipping malformed row " NR " (expected " header_nf " field(s), got " NF " - check for an unescaped comma in a client/server name): " $0 > "/dev/stderr"
+    next
+}
 
 receiver != "" && $2 == receiver { next }
 

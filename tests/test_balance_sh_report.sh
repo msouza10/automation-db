@@ -48,7 +48,7 @@ assert_contains "$out" "TOTAL: 1 client(s) moved, 10 device(s) moved across 2 se
 
 expected_srv2=$(mktemp)
 echo "c2" > "$expected_srv2"
-assert_file_eq "$expected_srv2" "$proj/results/test-env/to_srv2.txt" "normal run should still write the output files"
+assert_file_eq "$expected_srv2" "$(find_file "$proj/results/test-env" to_srv2.txt)" "normal run should still write the output files"
 rm -f "$expected_srv2"
 
 log_file=$(find "$proj/logs/test-env" -name 'balance_*.log' 2>/dev/null | head -n1)
@@ -83,8 +83,8 @@ assert_contains "$out2" "=== AFTER ===" "--dry-run should print the AFTER table"
 assert_contains "$out2" "c2: srv1 -> srv2 (10 devices)" "--dry-run should show the planned move"
 assert_contains "$out2" "dry-run" "--dry-run should make clear that nothing was written"
 
-assert_file_missing "$proj2/results/test-env/to_srv2.txt" "--dry-run should not create result files"
-assert_file_missing "$proj2/results/test-env/result.csv" "--dry-run should not create result.csv"
+assert_file_missing "$(find_file "$proj2/results/test-env" to_srv2.txt)" "--dry-run should not create result files"
+assert_file_missing "$(find_file "$proj2/results/test-env" result.csv)" "--dry-run should not create result.csv"
 [ -d "$proj2/logs/test-env" ] && log_count=$(find "$proj2/logs/test-env" -name 'balance_*.log' 2>/dev/null | wc -l) || log_count=0
 assert_eq "0" "$log_count" "--dry-run should not write any log file"
 
